@@ -1,0 +1,519 @@
+{
+  "info": {
+    "_postman_id": "735e9154-6f82-4a34-8701-7bfd1c24d7bd",
+    "name": "MakePay API",
+    "description": "Postman collection for MakePay payment links, checkout, subscriptions, Simple Shop, bookkeeping, branding, and webhook operations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('response is JSON when a body is returned', function () {",
+          "  if (pm.response.text()) pm.response.to.be.json;",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "partnerBaseUrl",
+      "value": "https://www.makecrypto.io"
+    },
+    {
+      "key": "checkoutBaseUrl",
+      "value": "https://makepay.io"
+    }
+  ],
+  "item": [
+    {
+      "name": "Payment Links",
+      "item": [
+        {
+          "name": "Create payment link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\",\n  \"sendPaymentRequestEmail\": false,\n  \"payload\": {\n    \"title\": \"Order #1042\",\n    \"description\": \"Hosted checkout for order #1042\",\n    \"amount\": \"129.99\",\n    \"currency\": \"USDT\",\n    \"orderId\": \"order_1042\",\n    \"customerEmail\": \"buyer@example.com\",\n    \"returnUrl\": \"https://merchant.example/orders/1042\",\n    \"successUrl\": \"https://merchant.example/orders/1042/success\",\n    \"failureUrl\": \"https://merchant.example/orders/1042/pay\",\n    \"metadata\": {\n      \"source\": \"postman\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/payment-links",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "payment-links"]
+            },
+            "description": "Creates a hosted MakePay checkout link for a merchant order."
+          }
+        },
+        {
+          "name": "List payment links",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/payment-links?limit=25",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "payment-links"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "25"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get payment link",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/payment-links/{{paymentLinkUid}}",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "payment-links", "{{paymentLinkUid}}"]
+            }
+          }
+        },
+        {
+          "name": "Pause payment link",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paused\"\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/payment-links/{{paymentLinkUid}}",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "payment-links", "{{paymentLinkUid}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public Checkout",
+      "item": [
+        {
+          "name": "Resolve public payment link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{checkoutBaseUrl}}/api/public/payment-links/{{paymentLinkUid}}",
+              "host": ["{{checkoutBaseUrl}}"],
+              "path": ["api", "public", "payment-links", "{{paymentLinkUid}}"]
+            }
+          }
+        },
+        {
+          "name": "Quote payer asset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sellAsset\": \"BTC.BTC\",\n  \"receiptEmail\": \"buyer@example.com\",\n  \"slippage\": 8\n}"
+            },
+            "url": {
+              "raw": "{{checkoutBaseUrl}}/api/public/payment-links/{{paymentLinkUid}}/quote-payin",
+              "host": ["{{checkoutBaseUrl}}"],
+              "path": ["api", "public", "payment-links", "{{paymentLinkUid}}", "quote-payin"]
+            }
+          }
+        },
+        {
+          "name": "Start payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sessionId\": \"{{sessionId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{checkoutBaseUrl}}/api/public/payment-links/{{paymentLinkUid}}/start-payment",
+              "host": ["{{checkoutBaseUrl}}"],
+              "path": ["api", "public", "payment-links", "{{paymentLinkUid}}", "start-payment"]
+            }
+          }
+        },
+        {
+          "name": "Get payment status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{checkoutBaseUrl}}/api/public/payment-links/{{paymentLinkUid}}/payment-status?sessionId={{sessionId}}",
+              "host": ["{{checkoutBaseUrl}}"],
+              "path": ["api", "public", "payment-links", "{{paymentLinkUid}}", "payment-status"],
+              "query": [
+                {
+                  "key": "sessionId",
+                  "value": "{{sessionId}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers and Subscriptions",
+      "item": [
+        {
+          "name": "Upsert customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"buyer@example.com\",\n  \"name\": \"Buyer Example\",\n  \"clientId\": \"crm_123\"\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/customers",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "customers"]
+            }
+          }
+        },
+        {
+          "name": "Create subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountUsd\": \"29\",\n  \"customerEmail\": \"buyer@example.com\",\n  \"label\": \"Monthly plan\",\n  \"billingIntervalUnit\": \"month\",\n  \"billingIntervalCount\": 1\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/subscriptions",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "subscriptions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Simple Shop",
+      "item": [
+        {
+          "name": "Create product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Digital guide\",\n  \"productType\": \"digital\",\n  \"basePriceUsd\": \"19\",\n  \"shopSlug\": \"digital-guide\",\n  \"images\": [\n    {\n      \"url\": \"https://merchant.example/guide.png\",\n      \"alt\": \"Guide cover\"\n    }\n  ],\n  \"variants\": [\n    {\n      \"name\": \"PDF\",\n      \"priceUsd\": \"19\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/products",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "products"]
+            }
+          }
+        },
+        {
+          "name": "Update shop",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"slug\": \"merchant-shop\",\n  \"displayCurrency\": \"USD\",\n  \"checkoutMode\": \"hosted\",\n  \"branding\": {\n    \"accentColor\": \"#14b8a6\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/shop",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "shop"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookkeeping",
+      "item": [
+        {
+          "name": "Get bookkeeping summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/bookkeeping",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "bookkeeping"]
+            }
+          }
+        },
+        {
+          "name": "Create invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Invoice #1042\",\n  \"currency\": \"USD\",\n  \"issueDate\": \"2026-05-15\",\n  \"dueDate\": \"2026-05-30\",\n  \"counterparty\": {\n    \"name\": \"Buyer Example\",\n    \"email\": \"buyer@example.com\",\n    \"clientId\": \"crm_123\"\n  },\n  \"lineItems\": [\n    {\n      \"description\": \"Implementation services\",\n      \"quantity\": \"1\",\n      \"unitAmount\": \"500\",\n      \"taxAmount\": \"0\"\n    }\n  ],\n  \"metadata\": {\n    \"orderId\": \"order_1042\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/bookkeeping/invoices",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "bookkeeping", "invoices"]
+            }
+          }
+        },
+        {
+          "name": "Create invoice payment link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sendPaymentRequestEmail\": true\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/bookkeeping/invoices/{{invoiceId}}/payment-link",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "bookkeeping", "invoices", "{{invoiceId}}", "payment-link"]
+            }
+          }
+        },
+        {
+          "name": "Create expense",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hosting\",\n  \"amount\": \"49\",\n  \"currency\": \"USD\",\n  \"incurredOn\": \"2026-05-15\",\n  \"category\": \"Infrastructure\",\n  \"counterparty\": {\n    \"name\": \"Vendor Example\",\n    \"type\": \"vendor\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/bookkeeping/expenses",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "bookkeeping", "expenses"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Operations",
+      "item": [
+        {
+          "name": "List destination assets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/destination-assets",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "destination-assets"]
+            }
+          }
+        },
+        {
+          "name": "Update webhook URL",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-MakeCrypto-Key-Id",
+                "value": "{{makepayKeyId}}"
+              },
+              {
+                "key": "X-MakeCrypto-Key-Secret",
+                "value": "{{makepayKeySecret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackUrl\": \"https://merchant.example/webhooks/makepay\"\n}"
+            },
+            "url": {
+              "raw": "{{partnerBaseUrl}}/api/partner/v1/makepay/settings",
+              "host": ["{{partnerBaseUrl}}"],
+              "path": ["api", "partner", "v1", "makepay", "settings"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

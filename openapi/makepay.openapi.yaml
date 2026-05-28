@@ -1,0 +1,2192 @@
+openapi: 3.1.0
+info:
+  title: MakePay API
+  version: 0.1.0
+  summary: Partner, checkout, and bookkeeping API description for MakePay.
+  description: |
+    This OpenAPI document describes the public MakePay partner API surfaces used
+    by SDKs, plugins, automation tools, and commerce integrations.
+
+    Authenticated partner requests use server-side API keys. Do not expose key
+    secrets in browsers, mobile apps, public repositories, client-side plugins,
+    or logs.
+  contact:
+    name: MakePay
+    email: info@makepay.io
+    url: https://www.makecrypto.io
+  license:
+    name: MIT
+    url: https://opensource.org/license/mit/
+servers:
+  - url: https://www.makecrypto.io
+    description: MakeCrypto partner API
+  - url: https://makepay.io
+    description: MakePay hosted checkout and public payer API
+security:
+  - MakeCryptoKeyId: []
+    MakeCryptoKeySecret: []
+  - MakePayKeyId: []
+    MakePayKeySecret: []
+  - LegacyApiKey: []
+    LegacyApiSecret: []
+tags:
+  - name: Payment Links
+    description: Hosted checkout links and merchant payment requests.
+  - name: Public Checkout
+    description: Public payer checkout, quote, and session endpoints.
+  - name: Donations
+    description: Flexible-amount donation links and campaign pages.
+  - name: Customers
+    description: Merchant customer profiles and customer portal links.
+  - name: Subscriptions
+    description: Recurring billing and payment request subscriptions.
+  - name: POS
+    description: Point-of-sale terminals and payment catalog controls.
+  - name: Products
+    description: Merchant product catalog and digital download records.
+  - name: Simple Shop
+    description: MakePay-hosted storefront settings, content, coupons, and orders.
+  - name: Branding
+    description: Merchant payment-link, checkout, and email branding.
+  - name: Bookkeeping
+    description: Invoices, expenses, documents, OCR, and reconciliation links.
+  - name: Operations
+    description: Settings, destination assets, and operational endpoints.
+  - name: Webhooks
+    description: Webhook delivery logs and signed event payloads.
+webhooks:
+  makePayPaymentEvent:
+    post:
+      tags: [Webhooks]
+      operationId: receiveMakePayWebhook
+      summary: Receive a signed MakePay webhook event.
+      description: |
+        Webhook consumers must verify `X-MakePay-Signature` against
+        `<timestamp>.<raw body>` using the merchant webhook secret before
+        parsing or acting on the event.
+      security: []
+      parameters:
+        - name: X-MakePay-Signature
+          in: header
+          required: true
+          schema:
+            type: string
+          example: t=1779997509,v1=9d315bd1f0c7653a0f49cc7fe7990a8f2d6d7d9e5e80e3fffe42f7ea0f9b0c4d
+        - name: X-MakePay-Delivery-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: X-MakePay-Event
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MakePayWebhookEvent"
+      responses:
+        "200":
+          description: Event accepted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+paths:
+  /api/partner/v1/makepay/payment-links:
+    get:
+      tags: [Payment Links]
+      operationId: listPaymentLinks
+      summary: List payment links.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Payment links for the authenticated merchant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinksResponse"
+    post:
+      tags: [Payment Links]
+      operationId: createPaymentLink
+      summary: Create a hosted MakePay payment link.
+      description: |
+        Creates a payment request and returns a hosted checkout URL. The same
+        endpoint can also create anonymous links when a settlement route is
+        supplied instead of server-side merchant credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CreatePaymentLinkRequest"
+                - $ref: "#/components/schemas/AnonymousPaymentLinkPayload"
+            examples:
+              checkout:
+                value:
+                  status: active
+                  sendPaymentRequestEmail: false
+                  payload:
+                    title: Order #1042
+                    description: Hosted checkout for order #1042
+                    amount: "129.99"
+                    currency: USDT
+                    orderId: order_1042
+                    customerEmail: buyer@example.com
+                    returnUrl: https://merchant.example/orders/1042
+                    successUrl: https://merchant.example/orders/1042/success
+                    failureUrl: https://merchant.example/orders/1042/pay
+      responses:
+        "200":
+          description: Created payment link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/OnboardingRequired"
+  /api/partner/v1/makepay/payment-links/{uid}:
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    get:
+      tags: [Payment Links]
+      operationId: getPaymentLink
+      summary: Get one payment link.
+      responses:
+        "200":
+          description: Payment link detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+    patch:
+      tags: [Payment Links]
+      operationId: updatePaymentLink
+      summary: Update a payment link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentLinkUpdate"
+      responses:
+        "200":
+          description: Updated payment link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+  /api/partner/v1/makepay/payment-links/{uid}/send-request-email:
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    post:
+      tags: [Payment Links]
+      operationId: sendPaymentRequestEmail
+      summary: Send or resend a payment request email.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Email delivery attempt result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+  /api/public/payment-links/{uid}:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    get:
+      tags: [Public Checkout]
+      operationId: getPublicPaymentLink
+      summary: Resolve public payment-link details for checkout.
+      security: []
+      responses:
+        "200":
+          description: Public payment-link details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPaymentLinkResponse"
+  /api/public/payment-links/{uid}/quote-payin:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    post:
+      tags: [Public Checkout]
+      operationId: quotePublicPaymentLinkPayin
+      summary: Quote the payer input asset for a payment link.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotePayinRequest"
+      responses:
+        "200":
+          description: Quote and session details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotePayinResponse"
+  /api/public/payment-links/{uid}/start-payment:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    post:
+      tags: [Public Checkout]
+      operationId: startPublicPayment
+      summary: Open a deposit channel for a quoted session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId]
+              properties:
+                sessionId:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: Started payment session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/public/payment-links/{uid}/payment-status:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+      - name: sessionId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Public Checkout]
+      operationId: getPublicPaymentStatus
+      summary: Get payment status for a checkout session.
+      security: []
+      responses:
+        "200":
+          description: Payment status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/public/payment-links/{uid}/current-session:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    get:
+      tags: [Public Checkout]
+      operationId: getCurrentPublicPaymentSession
+      summary: Get current public payment session for a link.
+      security: []
+      responses:
+        "200":
+          description: Current session details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/public/payment-links/{uid}/cancel-payment:
+    servers:
+      - url: https://makepay.io
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    post:
+      tags: [Public Checkout]
+      operationId: cancelPublicPayment
+      summary: Cancel the current public payment session.
+      security: []
+      responses:
+        "200":
+          description: Cancelled session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/donations:
+    get:
+      tags: [Donations]
+      operationId: listDonationLinks
+      summary: List donation links.
+      responses:
+        "200":
+          description: Donation links.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinksResponse"
+    post:
+      tags: [Donations]
+      operationId: createDonationLink
+      summary: Create a donation link.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDonationLinkRequest"
+      responses:
+        "200":
+          description: Created donation link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+  /api/partner/v1/makepay/donations/{uid}:
+    parameters:
+      - $ref: "#/components/parameters/PaymentLinkUid"
+    get:
+      tags: [Donations]
+      operationId: getDonationLink
+      summary: Get one donation link.
+      responses:
+        "200":
+          description: Donation link detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+    patch:
+      tags: [Donations]
+      operationId: updateDonationLink
+      summary: Update donation link status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentLinkUpdate"
+      responses:
+        "200":
+          description: Updated donation link.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentLinkResponse"
+  /api/partner/v1/makepay/customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: List customers.
+      responses:
+        "200":
+          description: Customers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomersResponse"
+    post:
+      tags: [Customers]
+      operationId: upsertCustomer
+      summary: Create or update a customer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerPayload"
+      responses:
+        "200":
+          description: Customer upsert result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+  /api/partner/v1/makepay/customers/{customerId}/portal:
+    parameters:
+      - name: customerId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Customers]
+      operationId: createCustomerPortal
+      summary: Create a signed customer portal URL.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              properties:
+                returnUrl:
+                  type: string
+                  format: uri
+      responses:
+        "200":
+          description: Customer portal URL.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+  /api/partner/v1/makepay/subscriptions:
+    get:
+      tags: [Subscriptions]
+      operationId: listSubscriptions
+      summary: List subscriptions.
+      responses:
+        "200":
+          description: Subscriptions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionsResponse"
+    post:
+      tags: [Subscriptions]
+      operationId: createSubscription
+      summary: Create a subscription.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionPayload"
+      responses:
+        "200":
+          description: Created subscription.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionResponse"
+  /api/partner/v1/makepay/destination-assets:
+    get:
+      tags: [Operations]
+      operationId: listDestinationAssets
+      summary: List supported settlement destination assets.
+      responses:
+        "200":
+          description: Destination assets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/webhook-requests:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookRequests
+      summary: List webhook delivery attempts.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Webhook request logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/pos-terminals:
+    get:
+      tags: [POS]
+      operationId: listPosTerminals
+      summary: List POS terminals.
+      responses:
+        "200":
+          description: POS terminal list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosTerminalsResponse"
+    post:
+      tags: [POS]
+      operationId: createPosTerminal
+      summary: Create a POS terminal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosTerminalPayload"
+      responses:
+        "200":
+          description: Created POS terminal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosTerminalResponse"
+  /api/partner/v1/makepay/pos-terminals/{terminalId}:
+    parameters:
+      - name: terminalId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [POS]
+      operationId: getPosTerminal
+      summary: Get one POS terminal.
+      responses:
+        "200":
+          description: POS terminal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosTerminalResponse"
+    patch:
+      tags: [POS]
+      operationId: updatePosTerminal
+      summary: Update a POS terminal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PosTerminalPayload"
+      responses:
+        "200":
+          description: Updated POS terminal.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PosTerminalResponse"
+  /api/partner/v1/makepay/products:
+    get:
+      tags: [Products]
+      operationId: listProducts
+      summary: List products.
+      responses:
+        "200":
+          description: Product list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductsResponse"
+    post:
+      tags: [Products]
+      operationId: createProduct
+      summary: Create a product.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductPayload"
+      responses:
+        "200":
+          description: Created product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+  /api/partner/v1/makepay/products/{productId}:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Products]
+      operationId: getProduct
+      summary: Get one product.
+      responses:
+        "200":
+          description: Product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+    patch:
+      tags: [Products]
+      operationId: updateProduct
+      summary: Update a product.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductPayload"
+      responses:
+        "200":
+          description: Updated product.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductResponse"
+  /api/partner/v1/makepay/shop:
+    get:
+      tags: [Simple Shop]
+      operationId: getShop
+      summary: Get Simple Shop settings.
+      responses:
+        "200":
+          description: Shop settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopResponse"
+    patch:
+      tags: [Simple Shop]
+      operationId: updateShop
+      summary: Update Simple Shop settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShopPayload"
+      responses:
+        "200":
+          description: Updated shop settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShopResponse"
+  /api/partner/v1/makepay/shop/builder:
+    get:
+      tags: [Simple Shop]
+      operationId: getShopBuilder
+      summary: Get Simple Shop builder content.
+      responses:
+        "200":
+          description: Builder content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+    put:
+      tags: [Simple Shop]
+      operationId: updateShopBuilder
+      summary: Replace Simple Shop builder content.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Updated builder content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/shop/domains:
+    get:
+      tags: [Simple Shop]
+      operationId: getShopDomain
+      summary: Get shop custom-domain status.
+      responses:
+        "200":
+          description: Shop domain status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainResponse"
+    put:
+      tags: [Simple Shop]
+      operationId: updateShopDomain
+      summary: Update shop custom domain.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              properties:
+                domain:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Updated shop domain.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainResponse"
+    post:
+      tags: [Simple Shop]
+      operationId: refreshShopDomain
+      summary: Refresh shop domain verification.
+      responses:
+        "200":
+          description: Refreshed shop domain.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DomainResponse"
+  /api/partner/v1/makepay/shop/coupons:
+    get:
+      tags: [Simple Shop]
+      operationId: listShopCoupons
+      summary: List Simple Shop coupons.
+      responses:
+        "200":
+          description: Coupons.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+    post:
+      tags: [Simple Shop]
+      operationId: createShopCoupon
+      summary: Create a Simple Shop coupon.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Created coupon.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/shop/coupons/{couponUid}:
+    parameters:
+      - name: couponUid
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      tags: [Simple Shop]
+      operationId: updateShopCoupon
+      summary: Update a Simple Shop coupon.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Updated coupon.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+    delete:
+      tags: [Simple Shop]
+      operationId: archiveShopCoupon
+      summary: Archive a Simple Shop coupon.
+      responses:
+        "200":
+          description: Archived coupon.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/shop/orders:
+    get:
+      tags: [Simple Shop]
+      operationId: listShopOrders
+      summary: List Simple Shop orders.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Status"
+      responses:
+        "200":
+          description: Shop orders.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/shop/products/{productId}/downloads:
+    parameters:
+      - name: productId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Products]
+      operationId: listProductDownloads
+      summary: List digital download records for a product.
+      responses:
+        "200":
+          description: Product downloads.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+    post:
+      tags: [Products]
+      operationId: createProductDownload
+      summary: Create a digital download record for a product.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Created product download.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/branding:
+    get:
+      tags: [Branding]
+      operationId: getBranding
+      summary: Get merchant branding.
+      responses:
+        "200":
+          description: Branding settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingResponse"
+    patch:
+      tags: [Branding]
+      operationId: updateBranding
+      summary: Update merchant branding.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandingPayload"
+      responses:
+        "200":
+          description: Updated branding settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/branding/domains/refresh:
+    post:
+      tags: [Branding]
+      operationId: refreshBrandingDomains
+      summary: Refresh branding domain verification.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum: [payment-link, email-sending, all]
+      responses:
+        "200":
+          description: Refreshed branding domains.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/settings:
+    get:
+      tags: [Operations]
+      operationId: getSettings
+      summary: Get MakePay merchant settings.
+      responses:
+        "200":
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingResponse"
+    put:
+      tags: [Operations]
+      operationId: updateSettings
+      summary: Update MakePay merchant settings.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericObject"
+      responses:
+        "200":
+          description: Updated settings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenericObject"
+  /api/partner/v1/makepay/bookkeeping:
+    get:
+      tags: [Bookkeeping]
+      operationId: getBookkeepingSummary
+      summary: Get bookkeeping summary.
+      responses:
+        "200":
+          description: Bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/invoices:
+    get:
+      tags: [Bookkeeping]
+      operationId: listBookkeepingInvoices
+      summary: List bookkeeping invoices.
+      responses:
+        "200":
+          description: Bookkeeping invoices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingInvoicesResponse"
+    post:
+      tags: [Bookkeeping]
+      operationId: createBookkeepingInvoice
+      summary: Create a bookkeeping invoice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingInvoicePayload"
+      responses:
+        "200":
+          description: Created bookkeeping invoice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/invoices/{invoiceId}:
+    parameters:
+      - $ref: "#/components/parameters/InvoiceId"
+    get:
+      tags: [Bookkeeping]
+      operationId: getBookkeepingInvoice
+      summary: Get a bookkeeping invoice.
+      responses:
+        "200":
+          description: Bookkeeping invoice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingInvoiceResponse"
+    patch:
+      tags: [Bookkeeping]
+      operationId: updateBookkeepingInvoice
+      summary: Update a bookkeeping invoice.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingInvoicePayload"
+      responses:
+        "200":
+          description: Updated bookkeeping invoice.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/invoices/{invoiceId}/payment-link:
+    parameters:
+      - $ref: "#/components/parameters/InvoiceId"
+    post:
+      tags: [Bookkeeping]
+      operationId: createBookkeepingInvoicePaymentLink
+      summary: Create a payment link for a bookkeeping invoice.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              properties:
+                sendEmail:
+                  type: boolean
+                sendPaymentRequestEmail:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/expenses:
+    get:
+      tags: [Bookkeeping]
+      operationId: listBookkeepingExpenses
+      summary: List bookkeeping expenses.
+      responses:
+        "200":
+          description: Bookkeeping expenses.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingExpensesResponse"
+    post:
+      tags: [Bookkeeping]
+      operationId: createBookkeepingExpense
+      summary: Create a bookkeeping expense.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingExpensePayload"
+      responses:
+        "200":
+          description: Created bookkeeping expense.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/expenses/from-activity:
+    post:
+      tags: [Bookkeeping]
+      operationId: createBookkeepingExpenseFromActivity
+      summary: Create a bookkeeping expense from wallet activity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingExpensePayload"
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/expenses/{expenseId}:
+    parameters:
+      - $ref: "#/components/parameters/ExpenseId"
+    get:
+      tags: [Bookkeeping]
+      operationId: getBookkeepingExpense
+      summary: Get a bookkeeping expense.
+      responses:
+        "200":
+          description: Bookkeeping expense.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingExpenseResponse"
+    patch:
+      tags: [Bookkeeping]
+      operationId: updateBookkeepingExpense
+      summary: Update a bookkeeping expense.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingExpensePayload"
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/documents:
+    get:
+      tags: [Bookkeeping]
+      operationId: listBookkeepingDocuments
+      summary: List bookkeeping documents.
+      responses:
+        "200":
+          description: Bookkeeping documents.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingDocumentsResponse"
+    post:
+      tags: [Bookkeeping]
+      operationId: uploadBookkeepingDocument
+      summary: Upload a bookkeeping document.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                fileName:
+                  type: string
+                documentType:
+                  type: string
+                  enum: [invoice, receipt, statement, contract, other]
+                invoiceId:
+                  type: string
+                expenseId:
+                  type: string
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/documents/{documentId}/download:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    get:
+      tags: [Bookkeeping]
+      operationId: getBookkeepingDocumentDownloadUrl
+      summary: Create a temporary bookkeeping document download URL.
+      responses:
+        "200":
+          description: Download URL.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                additionalProperties: true
+                properties:
+                  url:
+                    type: string
+                    format: uri
+  /api/partner/v1/makepay/bookkeeping/documents/{documentId}/ocr:
+    parameters:
+      - $ref: "#/components/parameters/DocumentId"
+    post:
+      tags: [Bookkeeping]
+      operationId: runBookkeepingDocumentOcr
+      summary: Run OCR on a bookkeeping document.
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+  /api/partner/v1/makepay/bookkeeping/reconciliation:
+    post:
+      tags: [Bookkeeping]
+      operationId: createBookkeepingReconciliation
+      summary: Link bookkeeping records to payments, subscriptions, or wallet activity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookkeepingReconciliationPayload"
+      responses:
+        "200":
+          description: Updated bookkeeping summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookkeepingSummaryResponse"
+components:
+  securitySchemes:
+    MakeCryptoKeyId:
+      type: apiKey
+      in: header
+      name: X-MakeCrypto-Key-Id
+    MakeCryptoKeySecret:
+      type: apiKey
+      in: header
+      name: X-MakeCrypto-Key-Secret
+    MakePayKeyId:
+      type: apiKey
+      in: header
+      name: X-MakePay-Key-Id
+    MakePayKeySecret:
+      type: apiKey
+      in: header
+      name: X-MakePay-Key-Secret
+    LegacyApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    LegacyApiSecret:
+      type: apiKey
+      in: header
+      name: X-Api-Secret
+  parameters:
+    PaymentLinkUid:
+      name: uid
+      in: path
+      required: true
+      schema:
+        type: string
+      example: 01jsg7w9n8pz8l4x0dn26v2aqd
+    InvoiceId:
+      name: invoiceId
+      in: path
+      required: true
+      schema:
+        type: string
+    ExpenseId:
+      name: expenseId
+      in: path
+      required: true
+      schema:
+        type: string
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    Status:
+      name: status
+      in: query
+      required: false
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+    OnboardingRequired:
+      description: Merchant setup is incomplete.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorBody"
+  schemas:
+    GenericObject:
+      type: object
+      additionalProperties: true
+    ErrorBody:
+      type: object
+      required: [error]
+      additionalProperties: true
+      properties:
+        error:
+          type: string
+        errorCode:
+          type: string
+    DecimalString:
+      oneOf:
+        - type: string
+        - type: number
+    PaymentLinkStatus:
+      type: string
+      enum: [active, paused, archived]
+    PaymentSessionStatus:
+      type: string
+      enum:
+        - quoted
+        - awaiting_deposit
+        - pending
+        - deposit_received
+        - swapping
+        - sending
+        - complete
+        - failed
+        - expired
+        - underpaid
+        - cancelled
+    PaymentLinkPayload:
+      type: object
+      required: [amount]
+      additionalProperties: true
+      properties:
+        title:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        amount:
+          $ref: "#/components/schemas/DecimalString"
+        currency:
+          type: string
+          example: USDT
+        asset:
+          type: string
+          example: ETH.USDT-0xdac17f958d2ee523a2206206994597c13d831ec7
+        orderId:
+          type: string
+        merchantOrderId:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+        receiptEmail:
+          type: string
+          format: email
+        clientId:
+          type: string
+        returnUrl:
+          type: string
+          format: uri
+        successUrl:
+          type: string
+          format: uri
+        failureUrl:
+          type: string
+          format: uri
+        returnRedirectUrl:
+          type: string
+          format: uri
+        successRedirectUrl:
+          type: string
+          format: uri
+        failureRedirectUrl:
+          type: string
+          format: uri
+        expirationTime:
+          type: string
+          examples: [15m, 1h, 12h, 24h, 72h, never]
+        metadata:
+          type: object
+          additionalProperties: true
+    DonationPayload:
+      allOf:
+        - $ref: "#/components/schemas/PaymentLinkPayload"
+        - type: object
+          additionalProperties: true
+          properties:
+            defaultAmountUsd:
+              $ref: "#/components/schemas/DecimalString"
+            minimumAmountUsd:
+              $ref: "#/components/schemas/DecimalString"
+            donationSlug:
+              type: string
+    CreatePaymentLinkRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        status:
+          $ref: "#/components/schemas/PaymentLinkStatus"
+        sendPaymentRequestEmail:
+          type: boolean
+        payload:
+          $ref: "#/components/schemas/PaymentLinkPayload"
+    CreateDonationLinkRequest:
+      type: object
+      additionalProperties: true
+      properties:
+        status:
+          $ref: "#/components/schemas/PaymentLinkStatus"
+        sendPaymentRequestEmail:
+          type: boolean
+        payload:
+          $ref: "#/components/schemas/DonationPayload"
+    AnonymousPaymentLinkPayload:
+      type: object
+      required: [amount, settlement]
+      additionalProperties: true
+      properties:
+        amount:
+          $ref: "#/components/schemas/DecimalString"
+        settlement:
+          type: object
+          required: [currency, priorities]
+          additionalProperties: true
+          properties:
+            currency:
+              type: string
+            priorities:
+              type: array
+              items:
+                type: object
+                required: [chain, address]
+                additionalProperties: true
+                properties:
+                  chain:
+                    type: string
+                  address:
+                    type: string
+                  asset:
+                    type: string
+                  assetIdentifier:
+                    type: string
+        title:
+          type: string
+        webhookUrl:
+          type: string
+          format: uri
+    PaymentLinkUpdate:
+      type: object
+      additionalProperties: true
+      properties:
+        status:
+          $ref: "#/components/schemas/PaymentLinkStatus"
+    PaymentLink:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        publicUrl:
+          type: string
+          format: uri
+        checkoutUrl:
+          type: string
+          format: uri
+        status:
+          type: string
+        type:
+          type: string
+        title:
+          type: [string, "null"]
+        label:
+          type: [string, "null"]
+        description:
+          type: [string, "null"]
+        amount:
+          $ref: "#/components/schemas/DecimalString"
+        currency:
+          type: [string, "null"]
+        asset:
+          type: [string, "null"]
+        orderId:
+          type: [string, "null"]
+        customerEmail:
+          type: [string, "null"]
+        donationSlug:
+          type: [string, "null"]
+        metadata:
+          type: object
+          additionalProperties: true
+    PaymentLinkResponse:
+      type: object
+      required: [paymentLink]
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        companyId:
+          type: string
+        paymentLink:
+          $ref: "#/components/schemas/PaymentLink"
+    PaymentLinksResponse:
+      type: object
+      required: [paymentLinks]
+      additionalProperties: true
+      properties:
+        companyId:
+          type: string
+        paymentLinks:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentLink"
+    PublicPaymentLinkResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        uid:
+          type: string
+        status:
+          type: string
+        isActive:
+          type: boolean
+        payload:
+          $ref: "#/components/schemas/GenericObject"
+        merchant:
+          $ref: "#/components/schemas/GenericObject"
+        redirects:
+          $ref: "#/components/schemas/GenericObject"
+    QuotePayinRequest:
+      type: object
+      required: [sellAsset]
+      additionalProperties: true
+      properties:
+        sellAsset:
+          type: string
+          example: BTC.BTC
+        receiptEmail:
+          type: string
+          format: email
+        slippage:
+          type: number
+          default: 8
+    QuotePayinResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/PaymentSessionStatus"
+        payable:
+          $ref: "#/components/schemas/GenericObject"
+        quote:
+          $ref: "#/components/schemas/GenericObject"
+        info:
+          $ref: "#/components/schemas/GenericObject"
+        expiresAt:
+          type: string
+          format: date-time
+    CustomerPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        email:
+          type: string
+          format: email
+        customerEmail:
+          type: string
+          format: email
+        name:
+          type: string
+        clientId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    Customer:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        email:
+          type: [string, "null"]
+        name:
+          type: [string, "null"]
+        clientId:
+          type: [string, "null"]
+    CustomersResponse:
+      type: object
+      required: [customers]
+      additionalProperties: true
+      properties:
+        customers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+    CustomerResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        customer:
+          $ref: "#/components/schemas/Customer"
+        portalUrl:
+          type: string
+          format: uri
+        url:
+          type: string
+          format: uri
+    SubscriptionPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        amountUsd:
+          $ref: "#/components/schemas/DecimalString"
+        customerEmail:
+          type: string
+          format: email
+        label:
+          type: string
+        description:
+          type: string
+        billingIntervalUnit:
+          type: string
+          enum: [day, week, month, year]
+        billingIntervalCount:
+          type: integer
+          minimum: 1
+        startAt:
+          type: string
+          format: date-time
+        sendPaymentRequestEmail:
+          type: boolean
+        clientId:
+          type: string
+    Subscription:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        status:
+          type: string
+        customerEmail:
+          type: [string, "null"]
+        amountUsd:
+          $ref: "#/components/schemas/DecimalString"
+    SubscriptionsResponse:
+      type: object
+      required: [subscriptions]
+      additionalProperties: true
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subscription"
+    SubscriptionResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        subscription:
+          $ref: "#/components/schemas/Subscription"
+    PosTerminalPayload:
+      type: object
+      required: [name]
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        pin:
+          type: string
+        status:
+          $ref: "#/components/schemas/PaymentLinkStatus"
+        allowedAssets:
+          type: array
+          items:
+            type: string
+        emailCollectionMode:
+          type: string
+          enum: [disabled, optional_after_deposit, required_after_deposit]
+        catalogEnabled:
+          type: boolean
+        displaySettings:
+          $ref: "#/components/schemas/GenericObject"
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    PosTerminal:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+    PosTerminalsResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        terminals:
+          type: array
+          items:
+            $ref: "#/components/schemas/PosTerminal"
+        posTerminals:
+          type: array
+          items:
+            $ref: "#/components/schemas/PosTerminal"
+    PosTerminalResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        terminal:
+          $ref: "#/components/schemas/PosTerminal"
+        posTerminal:
+          $ref: "#/components/schemas/PosTerminal"
+    ProductPayload:
+      type: object
+      required: [name]
+      additionalProperties: true
+      properties:
+        name:
+          type: string
+        description:
+          type: [string, "null"]
+        sku:
+          type: [string, "null"]
+        status:
+          type: string
+          enum: [active, draft, archived]
+        productType:
+          type: string
+          enum: [physical, digital]
+        shopSlug:
+          type: string
+        basePriceUsd:
+          $ref: "#/components/schemas/DecimalString"
+        images:
+          type: array
+          items: {}
+        variants:
+          type: array
+          items:
+            $ref: "#/components/schemas/GenericObject"
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    Product:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        productType:
+          type: string
+    ProductsResponse:
+      type: object
+      required: [products]
+      additionalProperties: true
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+    ProductResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        product:
+          $ref: "#/components/schemas/Product"
+    ShopPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        slug:
+          type: string
+        status:
+          type: string
+        displayCurrency:
+          type: string
+        checkoutMode:
+          type: string
+        billingDetailsRequired:
+          type: boolean
+        branding:
+          $ref: "#/components/schemas/GenericObject"
+    ShopResponse:
+      type: object
+      required: [shop]
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        shop:
+          type: object
+          additionalProperties: true
+    DomainResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        domain:
+          type: [string, "null"]
+        status:
+          type: [string, "null"]
+        verification:
+          type: [object, "null"]
+          additionalProperties: true
+    BrandingPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        brandName:
+          type: [string, "null"]
+        businessDescription:
+          type: [string, "null"]
+        websiteUrl:
+          type: [string, "null"]
+          format: uri
+        supportEmail:
+          type: [string, "null"]
+          format: email
+        brandingBrandColor:
+          type: [string, "null"]
+        brandingAccentColor:
+          type: [string, "null"]
+        paymentLinkTheme:
+          type: string
+          enum: [light, dark, system]
+        paymentLinkDomain:
+          type: [string, "null"]
+        emailSendingDomain:
+          type: [string, "null"]
+    BrandingResponse:
+      type: object
+      required: [settings]
+      additionalProperties: true
+      properties:
+        companyId:
+          type: string
+        company:
+          type: [object, "null"]
+          additionalProperties: true
+        settings:
+          type: object
+          additionalProperties: true
+    CounterpartyPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        clientId:
+          type: string
+        taxId:
+          type: string
+        address:
+          $ref: "#/components/schemas/GenericObject"
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    BookkeepingLineItemPayload:
+      type: object
+      required: [description]
+      additionalProperties: true
+      properties:
+        description:
+          type: string
+        quantity:
+          $ref: "#/components/schemas/DecimalString"
+        unitAmount:
+          $ref: "#/components/schemas/DecimalString"
+        taxAmount:
+          $ref: "#/components/schemas/DecimalString"
+        totalAmount:
+          $ref: "#/components/schemas/DecimalString"
+        sortOrder:
+          type: integer
+    BookkeepingInvoicePayload:
+      type: object
+      additionalProperties: true
+      properties:
+        invoiceNumber:
+          type: string
+        status:
+          type: string
+        paymentStatus:
+          type: string
+        currency:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: [string, "null"]
+          format: date
+        title:
+          type: [string, "null"]
+        description:
+          type: [string, "null"]
+        notes:
+          type: [string, "null"]
+        counterparty:
+          oneOf:
+            - $ref: "#/components/schemas/CounterpartyPayload"
+            - type: "null"
+        lineItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingLineItemPayload"
+        documentIds:
+          type: array
+          items:
+            type: string
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    BookkeepingExpensePayload:
+      type: object
+      additionalProperties: true
+      properties:
+        expenseNumber:
+          type: string
+        status:
+          type: string
+        currency:
+          type: string
+        amount:
+          $ref: "#/components/schemas/DecimalString"
+        totalAmount:
+          $ref: "#/components/schemas/DecimalString"
+        category:
+          type: [string, "null"]
+        incurredOn:
+          type: string
+          format: date
+        title:
+          type: [string, "null"]
+        notes:
+          type: [string, "null"]
+        walletActivityEventId:
+          type: string
+        walletActivityEventKey:
+          type: string
+        counterparty:
+          oneOf:
+            - $ref: "#/components/schemas/CounterpartyPayload"
+            - type: "null"
+        documentIds:
+          type: array
+          items:
+            type: string
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    BookkeepingReconciliationPayload:
+      type: object
+      additionalProperties: true
+      properties:
+        invoiceId:
+          type: string
+        expenseId:
+          type: string
+        paymentLinkId:
+          type: string
+        paymentSessionId:
+          type: string
+        subscriptionCycleId:
+          type: string
+        walletActivityEventId:
+          type: string
+        linkType:
+          type: string
+          enum: [payment, chain_transfer, subscription, manual]
+        amount:
+          $ref: "#/components/schemas/DecimalString"
+        assetSymbol:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/GenericObject"
+    BookkeepingInvoice:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        invoiceNumber:
+          type: string
+        status:
+          type: string
+        paymentStatus:
+          type: string
+        currency:
+          type: string
+        totalAmount:
+          type: string
+        paidAmount:
+          type: string
+        issueDate:
+          type: string
+          format: date
+        dueDate:
+          type: [string, "null"]
+          format: date
+    BookkeepingExpense:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        expenseNumber:
+          type: [string, "null"]
+        status:
+          type: string
+        currency:
+          type: string
+        amount:
+          type: string
+        category:
+          type: [string, "null"]
+        incurredOn:
+          type: string
+          format: date
+    BookkeepingDocument:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        uid:
+          type: string
+        fileName:
+          type: string
+        contentType:
+          type: [string, "null"]
+        byteSize:
+          type: integer
+        documentType:
+          type: string
+        ocrStatus:
+          type: string
+    BookkeepingSummary:
+      type: object
+      additionalProperties: true
+      properties:
+        integrations:
+          type: array
+          items:
+            type: string
+        canOcr:
+          type: boolean
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingInvoice"
+        expenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingExpense"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingDocument"
+        stats:
+          $ref: "#/components/schemas/GenericObject"
+    BookkeepingSummaryResponse:
+      type: object
+      required: [summary]
+      additionalProperties: true
+      properties:
+        ok:
+          type: boolean
+        summary:
+          $ref: "#/components/schemas/BookkeepingSummary"
+    BookkeepingInvoicesResponse:
+      type: object
+      required: [invoices]
+      additionalProperties: true
+      properties:
+        invoices:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingInvoice"
+        summary:
+          $ref: "#/components/schemas/BookkeepingSummary"
+    BookkeepingInvoiceResponse:
+      type: object
+      required: [invoice]
+      additionalProperties: true
+      properties:
+        invoice:
+          $ref: "#/components/schemas/BookkeepingInvoice"
+    BookkeepingExpensesResponse:
+      type: object
+      required: [expenses]
+      additionalProperties: true
+      properties:
+        expenses:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingExpense"
+        summary:
+          $ref: "#/components/schemas/BookkeepingSummary"
+    BookkeepingExpenseResponse:
+      type: object
+      required: [expense]
+      additionalProperties: true
+      properties:
+        expense:
+          $ref: "#/components/schemas/BookkeepingExpense"
+    BookkeepingDocumentsResponse:
+      type: object
+      required: [documents]
+      additionalProperties: true
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/BookkeepingDocument"
+        summary:
+          $ref: "#/components/schemas/BookkeepingSummary"
+    MakePayWebhookEvent:
+      type: object
+      required: [deliveryId, type, event, paymentLink, session]
+      additionalProperties: true
+      properties:
+        deliveryId:
+          type: string
+          format: uuid
+        type:
+          type: string
+          example: makepay.payment.status_changed
+        createdAt:
+          type: string
+          format: date-time
+        event:
+          type: object
+          required: [type]
+          additionalProperties: true
+          properties:
+            type:
+              type: string
+              enum:
+                - channel_created
+                - status_changed
+                - settlement_updated
+                - manual_resolution_completed
+                - underpayment_difference_requested
+                - refund_address_requested
+                - refund_address_received
+                - payment_cancelled_by_payer
+                - payment_request_expired
+                - quote_expired
+                - start_blocked_missing_company_wallet
+            trigger:
+              type: string
+        paymentLink:
+          $ref: "#/components/schemas/PaymentLink"
+        session:
+          type: object
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              $ref: "#/components/schemas/PaymentSessionStatus"
+            previousStatus:
+              $ref: "#/components/schemas/PaymentSessionStatus"
+            settlementAmount:
+              $ref: "#/components/schemas/GenericObject"
+        data:
+          $ref: "#/components/schemas/GenericObject"
