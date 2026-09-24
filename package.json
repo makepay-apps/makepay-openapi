@@ -11,6 +11,6 @@
     "validate:postman": "node scripts/validate-postman.mjs"
   },
   "devDependencies": {
-    "@redocly/cli": "^1.34.5"
+    "@redocly/cli": "^2.53.3"
   }
 }
